@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ParkEase – Parking Management System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.25s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.5rem; font-weight: 700; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+    .invoice-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; }
+    .invoice-row:last-child { border-bottom: none; }
+    @media print {
+      body * { visibility: hidden; }
+      #invoice-modal, #invoice-modal * { visibility: visible; }
+      #invoice-modal { position: fixed; inset: 0; background: white; padding: 2rem; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- ── TOP NAV ── -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a4 4 0 00-8 0v2M5 9h14l1 11H4L5 9z"/>
+          </svg>
+        </div>
+        <span class="font-bold text-lg text-slate-800">ParkEase</span>
+      </div>
+      <div class="flex gap-1">
+        <button onclick="showTab('dashboard')" id="tab-dashboard"
+          class="tab-btn px-2 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-500 hover:bg-slate-100">
+          <span class="hidden sm:inline">Dashboard</span><span class="sm:hidden">Home</span>
+        </button>
+        <button onclick="showTab('entry')" id="tab-entry"
+          class="tab-btn px-2 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-500 hover:bg-slate-100">
+          <span class="hidden sm:inline">Vehicle Entry</span><span class="sm:hidden">Entry</span>
+        </button>
+        <button onclick="showTab('exit')" id="tab-exit"
+          class="tab-btn px-2 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-500 hover:bg-slate-100">
+          <span class="hidden sm:inline">Vehicle Exit</span><span class="sm:hidden">Exit</span>
+        </button>
+        <button onclick="showTab('audit')" id="tab-audit"
+          class="tab-btn px-2 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-500 hover:bg-slate-100">
+          <span class="hidden sm:inline">Audit Log</span><span class="sm:hidden">Audit</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main class="max-w-6xl mx-auto px-4 py-4 md:py-8">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="hidden fade-in">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-800">Parking Dashboard</h2>
+          <p id="dashboard-date" class="text-sm text-slate-400 mt-0.5"></p>
+        </div>
+        <div class="text-right flex-shrink-0 ml-4">
+          <p id="dashboard-clock" class="text-lg font-bold text-slate-700 font-mono tabular-nums"></p>
+          <button onclick="refreshDashboard()" class="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium mt-1 ml-auto">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A7.5 7.5 0 0120 15M19.418 15A7.5 7.5 0 014 9"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Currently Parked</p>
+          <p id="stat-active" class="text-3xl font-bold text-blue-600 mt-1">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Exited Today</p>
+          <p id="stat-exited-today" class="text-3xl font-bold text-green-600 mt-1">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Exited</p>
+          <p id="stat-total-exited" class="text-3xl font-bold text-slate-700 mt-1">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Revenue Today</p>
+          <p id="stat-revenue" class="text-3xl font-bold text-amber-600 mt-1">₹0</p>
+        </div>
+      </div>
+
+      <!-- Queue -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-semibold text-slate-800">Current Queue</h3>
+          <span class="badge bg-blue-100 text-blue-700">Active Vehicles</span>
+        </div>
+        <div id="queue-list" class="divide-y divide-slate-50">
+          <div class="px-6 py-10 text-center text-slate-400 text-sm" id="queue-empty">No vehicles currently parked.</div>
+        </div>
+      </div>
+
+      <!-- Exit History -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-semibold text-slate-800">Exit History</h3>
+          <span class="badge bg-green-100 text-green-700">Completed</span>
+        </div>
+        <div id="history-list" class="divide-y divide-slate-50">
+          <div class="px-6 py-10 text-center text-slate-400 text-sm" id="history-empty">No exits recorded yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENTRY VIEW -->
+    <div id="view-entry" class="hidden fade-in max-w-md mx-auto">
+      <div class="text-center mb-4 md:mb-8">
+        <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14"/>
+          </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">Vehicle Entry</h2>
+        <p class="text-slate-500 text-sm mt-1">Register your vehicle into the parking queue</p>
+      </div>
+
+      <!-- Step 1: Phone -->
+      <div id="entry-step1" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 fade-in">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Step 1 of 2 — Identify</p>
+        <label class="block text-sm font-medium text-slate-700 mb-2">Mobile Number</label>
+        <div class="flex gap-2">
+          <span class="flex items-center px-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-sm">+91</span>
+          <input id="entry-phone" type="tel" maxlength="10" placeholder="98XXXXXXXX"
+            class="flex-1 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            oninput="this.value=this.value.replace(/\D/g,'')" onblur="validateEntryPhone()" />
+        </div>
+        <label class="block text-sm font-medium text-slate-700 mb-2 mt-4">Vehicle Number</label>
+        <input id="entry-vehicle" type="text" placeholder="MH 01 AB 1234" maxlength="15"
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase transition"
+          oninput="this.value=this.value.toUpperCase()" onblur="validateEntryVehicle()" />
+        <div id="entry-error" class="hidden mt-3 text-red-600 text-sm bg-red-50 rounded-lg px-4 py-2"></div>
+        <button onclick="entrySendOtp()"
+          class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95">
+          Send OTP
+        </button>
+      </div>
+
+      <!-- Step 2: OTP -->
+      <div id="entry-step2" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-6 fade-in">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Step 2 of 2 — Verify OTP</p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 flex items-start gap-3">
+          <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+          </svg>
+          <div>
+            <span class="font-semibold">Demo Mode:</span> OTP sent to +91 <span id="entry-phone-display" class="font-mono font-bold"></span>
+            <br/>Your OTP is: <span id="entry-otp-display" class="font-mono font-bold text-amber-900 text-base bg-amber-100 px-2 rounded"></span>
+          </div>
+        </div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">Enter OTP</label>
+        <input id="entry-otp-input" type="text" maxlength="6" placeholder="••••••"
+          class="otp-input w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          oninput="this.value=this.value.replace(/\D/g,'')" />
+        <div id="entry-otp-error" class="hidden mt-3 text-red-600 text-sm bg-red-50 rounded-lg px-4 py-2"></div>
+        <div class="flex gap-3 mt-4">
+          <button onclick="entryBack()"
+            class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 transition-all">
+            Back
+          </button>
+          <button onclick="entryVerifyOtp()"
+            class="flex-2 flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95">
+            Verify & Enter
+          </button>
+        </div>
+      </div>
+
+      <!-- Success -->
+      <div id="entry-success" class="hidden bg-white rounded-2xl border border-green-200 shadow-sm p-8 text-center fade-in">
+        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-slate-800 mb-2">Entry Confirmed!</h3>
+        <p class="text-slate-500 text-sm mb-5" id="entry-success-msg"></p>
+        <div class="bg-blue-50 rounded-xl p-4 mb-5 text-left">
+          <div class="flex justify-between text-sm mb-2">
+            <span class="text-slate-500">Queue Position</span>
+            <span id="entry-queue-pos" class="font-bold text-blue-700 text-lg">#1</span>
+          </div>
+          <div class="flex justify-between text-sm mb-2">
+            <span class="text-slate-500">Vehicle Number</span>
+            <span id="entry-vehicle-display" class="font-mono font-semibold text-slate-700"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Entry Time</span>
+            <span id="entry-time-display" class="font-semibold text-slate-700"></span>
+          </div>
+        </div>
+        <button onclick="entryReset()"
+          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all">
+          Register Another Vehicle
+        </button>
+      </div>
+    </div>
+
+    <!-- EXIT VIEW -->
+    <div id="view-exit" class="hidden fade-in max-w-xl mx-auto">
+      <div class="text-center mb-4 md:mb-8">
+        <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l4 4m0 0l-4 4m4-4H3"/>
+          </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">Vehicle Exit</h2>
+        <p class="text-slate-500 text-sm mt-1">Select a vehicle, verify OTP and generate invoice</p>
+      </div>
+
+      <!-- Step 1: Vehicle Picker -->
+      <div id="exit-step1" class="fade-in">
+
+        <!-- Search bar -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-3">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Step 1 of 2 — Select Vehicle</p>
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+            </svg>
+            <input id="exit-search" type="text" placeholder="Search by vehicle no. or phone..."
+              class="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+              oninput="renderExitVehicleList(this.value)" />
+          </div>
+        </div>
+
+        <!-- Vehicle list -->
+        <div id="exit-vehicle-list" class="space-y-2 max-h-56 sm:max-h-72 overflow-y-auto pr-1 mb-3">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- No vehicles state -->
+        <div id="exit-no-vehicles" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-10 text-center text-slate-400 text-sm mb-3">
+          <svg class="w-10 h-10 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          No active vehicles found.
+        </div>
+
+        <!-- Selected vehicle summary + Send OTP -->
+        <div id="exit-selected-summary" class="hidden bg-green-50 border border-green-200 rounded-2xl p-5 fade-in">
+          <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-3">Selected Vehicle</p>
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-mono font-bold text-slate-800 text-lg" id="exit-sel-vehicle"></span>
+            <span class="badge bg-green-100 text-green-700" id="exit-sel-pos"></span>
+          </div>
+          <p class="text-sm text-slate-500 mb-1">OTP will be sent to: <span class="font-semibold text-slate-700" id="exit-sel-phone-masked"></span></p>
+          <p class="text-xs text-slate-400 mb-4" id="exit-sel-entry"></p>
+          <div id="exit-error" class="hidden mb-3 text-red-600 text-sm bg-red-100 rounded-lg px-4 py-2"></div>
+          <button onclick="exitSendOtp()"
+            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            Send OTP
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Step 2: OTP Verify -->
+      <div id="exit-step2" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-6 fade-in">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Step 2 of 2 — Verify OTP</p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 flex items-start gap-3">
+          <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+          </svg>
+          <div>
+            <span class="font-semibold">Demo Mode:</span> OTP sent to +91 <span id="exit-phone-display" class="font-mono font-bold"></span>
+            <br/>Your OTP is: <span id="exit-otp-display" class="font-mono font-bold text-amber-900 text-base bg-amber-100 px-2 rounded"></span>
+          </div>
+        </div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">Enter OTP</label>
+        <input id="exit-otp-input" type="text" maxlength="6" placeholder="••••••"
+          class="otp-input w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+          oninput="this.value=this.value.replace(/\D/g,'')" />
+        <div id="exit-otp-error" class="hidden mt-3 text-red-600 text-sm bg-red-50 rounded-lg px-4 py-2"></div>
+        <div class="flex gap-3 mt-4">
+          <button onclick="exitBack()"
+            class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 transition-all">
+            Back
+          </button>
+          <button onclick="exitVerifyOtp()"
+            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95">
+            Verify & Exit
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT LOG VIEW -->
+    <div id="view-audit" class="hidden fade-in">
+
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-800">Audit Log</h2>
+          <p class="text-sm text-slate-400 mt-0.5">Full history of all vehicle trips</p>
+        </div>
+        <div class="flex gap-1.5 flex-shrink-0 ml-4">
+          <button onclick="setAuditFilter('all')" id="audit-filter-all"
+            class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-slate-800 text-white">All</button>
+          <button onclick="setAuditFilter('active')" id="audit-filter-active"
+            class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:bg-slate-100">Active</button>
+          <button onclick="setAuditFilter('exited')" id="audit-filter-exited"
+            class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:bg-slate-100">Exited</button>
+        </div>
+      </div>
+
+      <!-- Search + Download -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-3">
+        <div class="flex gap-2 items-center">
+          <div class="relative flex-1">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+            </svg>
+            <input id="audit-search" type="text" placeholder="Search by vehicle number or mobile number..."
+              class="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              oninput="renderAuditLog(this.value)" />
+          </div>
+          <button onclick="openDownloadModal()"
+            class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-95 px-3 py-2.5 rounded-xl transition-all flex-shrink-0 whitespace-nowrap">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            <span class="hidden sm:inline">Download</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Count -->
+      <p id="audit-count" class="text-xs text-slate-400 mb-3 px-1"></p>
+
+      <!-- Results -->
+      <div id="audit-list" class="space-y-3"></div>
+
+      <!-- Empty state -->
+      <div id="audit-empty" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-16 text-center text-slate-400">
+        <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <p class="font-medium text-slate-500">No records found</p>
+        <p class="text-xs mt-1">Try a different search term or filter</p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ── DOWNLOAD AUDIT LOG MODAL ── -->
+  <div id="download-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="closeDownloadModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-2xl p-5 text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg leading-tight">Download Audit Log</h3>
+            <p class="text-white/75 text-xs mt-0.5">Export as CSV file</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5">
+        <!-- Time frame presets -->
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Select Time Frame</p>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button id="dl-btn-today" onclick="setDownloadPreset('today')"
+            class="dl-preset-btn px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all text-slate-600 border-slate-200 hover:bg-slate-50">
+            Today
+          </button>
+          <button id="dl-btn-week" onclick="setDownloadPreset('week')"
+            class="dl-preset-btn px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all text-slate-600 border-slate-200 hover:bg-slate-50">
+            Last 7 Days
+          </button>
+          <button id="dl-btn-month" onclick="setDownloadPreset('month')"
+            class="dl-preset-btn px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all text-slate-600 border-slate-200 hover:bg-slate-50">
+            This Month
+          </button>
+          <button id="dl-btn-all" onclick="setDownloadPreset('all')"
+            class="dl-preset-btn px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all bg-blue-600 text-white border-blue-600">
+            All Time
+          </button>
+        </div>
+
+        <!-- Custom date range -->
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Custom Range</p>
+        <div class="flex gap-2 mb-4">
+          <div class="flex-1">
+            <label class="block text-xs text-slate-500 mb-1">From</label>
+            <input type="date" id="dl-from"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              oninput="setDownloadPreset('custom')" />
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs text-slate-500 mb-1">To</label>
+            <input type="date" id="dl-to"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              oninput="setDownloadPreset('custom')" />
+          </div>
+        </div>
+
+        <!-- Record count -->
+        <div class="bg-slate-50 rounded-xl p-3 mb-5 flex items-center justify-between">
+          <span class="text-sm text-slate-500">Records to export</span>
+          <span id="dl-count" class="text-sm font-bold text-slate-800">0</span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3">
+          <button onclick="closeDownloadModal()"
+            class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 transition-all">
+            Cancel
+          </button>
+          <button onclick="downloadAuditCsv()"
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Download CSV
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MANUAL EXIT MODAL ── -->
+  <div id="manual-exit-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="closeManualExitModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
+      <!-- Warning header -->
+      <div class="bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl p-5 text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg leading-tight">Manual Exit Override</h3>
+            <p class="text-white/75 text-xs mt-0.5">FIFO queue will be bypassed</p>
+          </div>
+        </div>
+      </div>
+      <div class="p-5">
+
+        <!-- ── STEP 1: Reason ── -->
+        <div id="manual-step1">
+          <!-- Vehicle summary -->
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <div id="manual-exit-vehicle-info"></div>
+          </div>
+          <!-- Reason -->
+          <label class="block text-sm font-medium text-slate-700 mb-2">
+            Reason for Manual Exit <span class="text-red-500">*</span>
+          </label>
+          <textarea id="manual-exit-reason" rows="3"
+            placeholder="e.g. Emergency exit, Owner request, Technical issue, VIP override..."
+            class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 transition resize-none"></textarea>
+          <div id="manual-exit-error" class="hidden mt-2 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+          <div class="flex gap-3 mt-4">
+            <button onclick="closeManualExitModal()"
+              class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 transition-all">
+              Cancel
+            </button>
+            <button onclick="manualExitSendOtp()"
+              class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+              Send OTP
+            </button>
+          </div>
+        </div>
+
+        <!-- ── STEP 2: OTP Verify ── -->
+        <div id="manual-step2" class="hidden fade-in">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Step 2 — Verify OTP to confirm exit</p>
+          <!-- Demo OTP banner -->
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800 flex items-start gap-3">
+            <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+            </svg>
+            <div>
+              <span class="font-semibold">Demo Mode:</span> OTP sent to +91 <span id="manual-exit-phone-display" class="font-mono font-bold"></span>
+              <br/>Your OTP is: <span id="manual-exit-otp-display" class="font-mono font-bold text-amber-900 text-base bg-amber-100 px-2 rounded"></span>
+            </div>
+          </div>
+          <label class="block text-sm font-medium text-slate-700 mb-2">Enter OTP</label>
+          <input id="manual-exit-otp-input" type="text" maxlength="6" placeholder="••••••"
+            class="otp-input w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+            oninput="this.value=this.value.replace(/\D/g,'')" />
+          <div id="manual-otp-error" class="hidden mt-2 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+          <div class="flex gap-3 mt-4">
+            <button onclick="manualExitBack()"
+              class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 transition-all">
+              Back
+            </button>
+            <button onclick="manualExitVerifyOtp()"
+              class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-all active:scale-95">
+              Verify & Exit
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INVOICE MODAL ── -->
+  <div id="invoice-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="closeInvoiceOnBg(event)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-6 text-white text-center">
+        <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold">Parking Invoice</h3>
+        <p class="text-blue-200 text-xs mt-1">ParkEase Management System</p>
+      </div>
+
+      <div class="p-6">
+        <!-- Invoice meta -->
+        <div class="flex justify-between text-xs text-slate-500 mb-5">
+          <span>Invoice #<span id="inv-id" class="font-mono font-semibold text-slate-700"></span></span>
+          <span id="inv-date"></span>
+        </div>
+
+        <!-- Vehicle details -->
+        <div class="bg-slate-50 rounded-xl p-4 mb-4">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Vehicle Details</p>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Vehicle No.</span>
+            <span class="font-mono font-bold text-slate-800" id="inv-vehicle"></span>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Mobile</span>
+            <span class="font-semibold text-slate-800" id="inv-phone"></span>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Queue Position</span>
+            <span class="font-semibold text-slate-800" id="inv-pos"></span>
+          </div>
+        </div>
+
+        <!-- Duration details -->
+        <div class="bg-slate-50 rounded-xl p-4 mb-4">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Parking Duration</p>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Entry Time</span>
+            <span class="font-semibold text-slate-800 text-xs" id="inv-entry"></span>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Exit Time</span>
+            <span class="font-semibold text-slate-800 text-xs" id="inv-exit"></span>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Duration</span>
+            <span class="font-semibold text-slate-800" id="inv-duration"></span>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Billable Days</span>
+            <span class="font-semibold text-slate-800" id="inv-days"></span>
+          </div>
+        </div>
+
+        <!-- Amount -->
+        <div class="bg-slate-50 rounded-xl p-4 mb-4">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Billing</p>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Rate</span>
+            <div class="text-right">
+              <span class="font-semibold text-slate-800">₹50.00 / 24 hrs</span>
+              <p class="text-xs text-slate-400">minimum 1 day charged</p>
+            </div>
+          </div>
+          <div class="invoice-row">
+            <span class="text-slate-500 text-sm">Billable Days</span>
+            <span class="font-semibold text-slate-800" id="inv-days2"></span>
+          </div>
+          <div id="inv-waived-row" class="invoice-row hidden">
+            <span class="text-green-600 text-sm font-medium">Same-day Waiver</span>
+            <div class="text-right">
+              <span class="font-semibold text-green-600" id="inv-waived"></span>
+              <p class="text-xs text-green-500">already paid today</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-blue-600 rounded-xl p-4 flex justify-between items-center">
+          <span class="text-white font-semibold">Total Amount</span>
+          <span class="text-white font-bold text-2xl" id="inv-total"></span>
+        </div>
+
+        <p class="text-center text-xs text-slate-400 mt-4 mb-5">Thank you for using ParkEase! Drive safely.</p>
+
+        <div class="flex gap-3 no-print">
+          <button onclick="printInvoice()"
+            class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl hover:bg-slate-50 flex items-center justify-center gap-2 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            Print
+          </button>
+          <button onclick="closeInvoice()"
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TOAST ── -->
+  <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-5 py-3 rounded-xl text-sm shadow-xl transition-all">
+    <span id="toast-msg"></span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
