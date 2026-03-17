@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────
 //  ParkEase – Parking Management System
-//  All state stored in localStorage for persistence
+//  State persisted via Vercel Postgres backend
 // ─────────────────────────────────────────────
 
 const RATE_PER_DAY = 50; // ₹50 per day
@@ -12,17 +12,29 @@ let state = {
   invoiceCounter: 1
 };
 
-function loadState() {
+async function loadState() {
   try {
-    const saved = localStorage.getItem('parkease_state');
-    if (saved) {
-      state = JSON.parse(saved);
+    const res = await fetch('/api/state');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.vehicles) {
+        state = data;
+      }
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.warn('Could not load state from server, using local state:', e);
+  }
 }
 
 function saveState() {
-  localStorage.setItem('parkease_state', JSON.stringify(state));
+  fetch('/api/state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state)
+  }).catch(e => {
+    console.error('Failed to save state:', e);
+    showToast('Failed to save. Please check your connection.');
+  });
 }
 
 // ── Utilities ──────────────────────────────────
@@ -1115,8 +1127,7 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-loadState();
-showTab('dashboard');
+loadState().then(() => showTab('dashboard'));
 
 // Enter key shortcuts
 document.addEventListener('keydown', e => {
